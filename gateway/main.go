@@ -42,8 +42,8 @@ func main() {
 	
 	grpcClient = pb.NewGreeterClient(conn)
 	
-	// Serve static files
-	fs := http.FileServer(http.Dir("./public"))
+	// Serve static files (public folder is in parent directory)
+	fs := http.FileServer(http.Dir("../public"))
 	http.Handle("/", fs)
 	
 	// API endpoints
