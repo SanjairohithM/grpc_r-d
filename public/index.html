@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gRPC Patterns Demo - Lightning Fast APIs ⚡</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ gRPC Communication Patterns</h1>
+            <p>Lightning Fast APIs with Real-time Frontend Integration</p>
+            <div class="status">
+                <span class="status-indicator" id="grpcStatus">●</span>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </header>
+
+        <div class="patterns-grid">
+            <!-- Pattern 1: Unary RPC -->
+            <div class="pattern-card">
+                <div class="pattern-header">
+                    <h2>1️⃣ Unary RPC</h2>
+                    <span class="badge">Request → Response</span>
+                </div>
+                <p class="description">Simple request-response, like REST API</p>
+                <div class="demo-section">
+                    <input type="text" id="unaryName" placeholder="Enter your name" value="Alice">
+                    <button onclick="testUnary()" class="btn btn-primary">Send Request</button>
+                </div>
+                <div class="result-box">
+                    <h4>Response:</h4>
+                    <div id="unaryResult" class="result"></div>
+                </div>
+                <div class="use-cases">
+                    <strong>Use Cases:</strong> Login, CRUD operations, Simple API calls
+                </div>
+            </div>
+
+            <!-- Pattern 2: Server Streaming -->
+            <div class="pattern-card">
+                <div class="pattern-header">
+                    <h2>2️⃣ Server Streaming</h2>
+                    <span class="badge">Request → Multiple Responses</span>
+                </div>
+                <p class="description">Server sends continuous stream of data</p>
+                <div class="demo-section">
+                    <input type="text" id="streamName" placeholder="Enter your name" value="Bob">
+                    <button onclick="testServerStream()" class="btn btn-success">Start Streaming</button>
+                    <button onclick="stopServerStream()" class="btn btn-danger">Stop</button>
+                </div>
+                <div class="result-box">
+                    <h4>Messages:</h4>
+                    <div id="streamResult" class="result stream-result"></div>
+                </div>
+                <div class="use-cases">
+                    <strong>Use Cases:</strong> Live stock prices, Real-time notifications, Log streaming
+                </div>
+            </div>
+
+            <!-- Pattern 3: Client Streaming -->
+            <div class="pattern-card">
+                <div class="pattern-header">
+                    <h2>3️⃣ Client Streaming</h2>
+                    <span class="badge">Multiple Requests → Response</span>
+                </div>
+                <p class="description">Client sends multiple messages, server responds once</p>
+                <div class="demo-section">
+                    <input type="text" id="clientStreamName" placeholder="Enter name and press Add">
+                    <button onclick="addName()" class="btn btn-info">Add Name</button>
+                    <button onclick="sendClientStream()" class="btn btn-primary">Send All</button>
+                    <button onclick="clearNames()" class="btn btn-secondary">Clear</button>
+                </div>
+                <div class="names-list">
+                    <h4>Names to send:</h4>
+                    <div id="namesList" class="names-container"></div>
+                </div>
+                <div class="result-box">
+                    <h4>Server Response:</h4>
+                    <div id="clientStreamResult" class="result"></div>
+                </div>
+                <div class="use-cases">
+                    <strong>Use Cases:</strong> File uploads, Batch inserts, IoT data collection
+                </div>
+            </div>
+
+            <!-- Pattern 4: Bidirectional Streaming -->
+            <div class="pattern-card">
+                <div class="pattern-header">
+                    <h2>4️⃣ Bidirectional Streaming</h2>
+                    <span class="badge">Multiple ↔ Multiple</span>
+                </div>
+                <p class="description">Real-time bidirectional communication</p>
+                <div class="demo-section">
+                    <button onclick="connectBidirectional()" class="btn btn-success">Connect</button>
+                    <button onclick="disconnectBidirectional()" class="btn btn-danger">Disconnect</button>
+                    <div class="connection-status">
+                        <span id="wsStatus">Disconnected</span>
+                    </div>
+                </div>
+                <div class="chat-box">
+                    <div id="chatMessages" class="chat-messages"></div>
+                    <div class="chat-input-container">
+                        <input type="text" id="chatInput" placeholder="Type a message..." onkeypress="handleChatKeyPress(event)">
+                        <button onclick="sendChatMessage()" class="btn btn-primary">Send</button>
+                    </div>
+                </div>
+                <div class="use-cases">
+                    <strong>Use Cases:</strong> Chat apps, Real-time collaboration, Multiplayer games
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Comparison -->
+        <div class="performance-section">
+            <h2>⚡ Performance Comparison</h2>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <h3>REST/JSON</h3>
+                    <div class="bar bar-rest">100ms</div>
+                </div>
+                <div class="comparison-item">
+                    <h3>gRPC</h3>
+                    <div class="bar bar-grpc">20ms</div>
+                </div>
+            </div>
+            <p class="performance-note">🚀 gRPC is 5-10x faster than REST/JSON!</p>
+        </div>
+
+        <footer>
+            <p>Built with gRPC, Go, and WebSocket | Real-time Communication Patterns</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
