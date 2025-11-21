@@ -6,7 +6,17 @@ option go_package = "./proto;helloworld";
 
 
 service Greeter {
+  // 1. Unary RPC - Simple request/response (already exists)
   rpc SayHello (HelloRequest) returns (HelloReply) {}
+  
+  // 2. Server Streaming RPC - One request, server sends multiple responses
+  rpc SayHelloServerStream (HelloRequest) returns (stream HelloReply) {}
+  
+  // 3. Client Streaming RPC - Client sends multiple requests, one response
+  rpc SayHelloClientStream (stream HelloRequest) returns (HelloReply) {}
+  
+  // 4. Bidirectional Streaming RPC - Both send multiple messages
+  rpc SayHelloBidirectional (stream HelloRequest) returns (stream HelloReply) {}
 }
 
 message HelloRequest {

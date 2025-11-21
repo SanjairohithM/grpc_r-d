@@ -119,9 +119,12 @@ const file_proto_helloworld_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"&\n" +
 	"\n" +
 	"HelloReply\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage2I\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage2\xb6\x02\n" +
 	"\aGreeter\x12>\n" +
-	"\bSayHello\x12\x18.helloworld.HelloRequest\x1a\x16.helloworld.HelloReply\"\x00B\x14Z\x12./proto;helloworldb\x06proto3"
+	"\bSayHello\x12\x18.helloworld.HelloRequest\x1a\x16.helloworld.HelloReply\"\x00\x12L\n" +
+	"\x14SayHelloServerStream\x12\x18.helloworld.HelloRequest\x1a\x16.helloworld.HelloReply\"\x000\x01\x12L\n" +
+	"\x14SayHelloClientStream\x12\x18.helloworld.HelloRequest\x1a\x16.helloworld.HelloReply\"\x00(\x01\x12O\n" +
+	"\x15SayHelloBidirectional\x12\x18.helloworld.HelloRequest\x1a\x16.helloworld.HelloReply\"\x00(\x010\x01B\x14Z\x12./proto;helloworldb\x06proto3"
 
 var (
 	file_proto_helloworld_proto_rawDescOnce sync.Once
@@ -142,9 +145,15 @@ var file_proto_helloworld_proto_goTypes = []any{
 }
 var file_proto_helloworld_proto_depIdxs = []int32{
 	0, // 0: helloworld.Greeter.SayHello:input_type -> helloworld.HelloRequest
-	1, // 1: helloworld.Greeter.SayHello:output_type -> helloworld.HelloReply
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	0, // 1: helloworld.Greeter.SayHelloServerStream:input_type -> helloworld.HelloRequest
+	0, // 2: helloworld.Greeter.SayHelloClientStream:input_type -> helloworld.HelloRequest
+	0, // 3: helloworld.Greeter.SayHelloBidirectional:input_type -> helloworld.HelloRequest
+	1, // 4: helloworld.Greeter.SayHello:output_type -> helloworld.HelloReply
+	1, // 5: helloworld.Greeter.SayHelloServerStream:output_type -> helloworld.HelloReply
+	1, // 6: helloworld.Greeter.SayHelloClientStream:output_type -> helloworld.HelloReply
+	1, // 7: helloworld.Greeter.SayHelloBidirectional:output_type -> helloworld.HelloReply
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
