@@ -42,9 +42,7 @@ func main() {
 	
 	grpcClient = pb.NewGreeterClient(conn)
 	
-	// Serve static files (public folder is in parent directory)
-	fs := http.FileServer(http.Dir("../public"))
-	http.Handle("/", fs)
+	// Note: Static files removed - Next.js serves its own frontend
 	
 	// API endpoints
 	http.HandleFunc("/api/unary", enableCORS(handleUnary))
@@ -52,21 +50,29 @@ func main() {
 	http.HandleFunc("/api/client-stream", enableCORS(handleClientStream))
 	http.HandleFunc("/api/bidirectional", handleBidirectional)
 	
-	log.Println("🚀 HTTP Gateway running on http://localhost:3000")
+	log.Println("🚀 HTTP Gateway (API) running on http://localhost:8081")
 	log.Println("📡 Connected to gRPC server on localhost:8080")
-	log.Println("🌐 Open http://localhost:3000 in your browser")
+	log.Println("🔗 CORS enabled for Next.js on http://localhost:3000")
 	
-	if err := http.ListenAndServe(":3000", nil); err != nil {
+	if err := http.ListenAndServe(":8081", nil); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// CORS middleware
+// CORS middleware - configured for Next.js
 func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Allow Next.js frontend (port 3000)
+		origin := r.Header.Get("Origin")
+		if origin == "http://localhost:3000" || origin == "http://localhost:3001" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		}
+		
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
