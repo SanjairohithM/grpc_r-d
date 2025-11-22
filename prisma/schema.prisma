@@ -1,0 +1,42 @@
+// Prisma Schema for gRPC Example with Supabase
+// Note: For Go, we use GORM. This schema is for reference and migrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Connection URLs are configured in prisma.config.ts for Prisma 7+
+  // For Go, we use GORM with DATABASE_URL from .env
+}
+
+// User model for greeting service
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  greetings Greeting[]
+  
+  @@index([name])
+  @@index([email])
+  @@map("users")
+}
+
+// Greeting model to track greeting history
+model Greeting {
+  id        String   @id @default(uuid())
+  message   String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@map("greetings")
+}
+

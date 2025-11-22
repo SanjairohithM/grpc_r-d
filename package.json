@@ -1,0 +1,24 @@
+{
+  "name": "grpc-example",
+  "version": "1.0.0",
+  "description": "This project demonstrates all 4 gRPC communication patterns with working examples.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SanjairohithM/grpc_r-d.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SanjairohithM/grpc_r-d/issues"
+  },
+  "homepage": "https://github.com/SanjairohithM/grpc_r-d#readme",
+  "devDependencies": {
+    "@prisma/client": "^7.0.0",
+    "prisma": "^7.0.0"
+  }
+}

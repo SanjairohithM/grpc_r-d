@@ -9,22 +9,7 @@ export interface StreamMessage {
   message: string;
 }
 
-// 1. UNARY RPC - Simple request/response
-export async function unaryCall(name: string): Promise<UnaryResponse> {
-  const response = await fetch(`${API_BASE}/unary`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  });
-  
-  if (!response.ok) {
-    throw new Error('Unary call failed');
-  }
-  
-  return response.json();
-}
-
-// 2. SERVER STREAMING - Server sends multiple responses
+// 1. SERVER STREAMING - Server sends multiple responses
 export function serverStream(
   name: string,
   onMessage: (data: StreamMessage) => void,
@@ -56,7 +41,7 @@ export function serverStream(
   return () => eventSource.close();
 }
 
-// 3. CLIENT STREAMING - Client sends multiple requests
+// 2. CLIENT STREAMING - Client sends multiple requests
 export async function clientStream(names: string[]): Promise<UnaryResponse> {
   const response = await fetch(`${API_BASE}/client-stream`, {
     method: 'POST',
@@ -71,7 +56,7 @@ export async function clientStream(names: string[]): Promise<UnaryResponse> {
   return response.json();
 }
 
-// 4. BIDIRECTIONAL STREAMING - WebSocket for two-way communication
+// 3. BIDIRECTIONAL STREAMING - WebSocket for two-way communication
 export interface BidirectionalClient {
   send: (message: string) => void;
   close: () => void;
@@ -120,15 +105,20 @@ export function bidirectionalStream(
   };
 }
 
-// Health check
+// Health check - uses server stream endpoint to check connectivity
 export async function checkHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/unary`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'HealthCheck' }),
+    // Try to connect to server stream endpoint (quick check)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+    
+    const response = await fetch(`${API_BASE}/server-stream?name=HealthCheck`, {
+      method: 'GET',
+      signal: controller.signal,
     });
-    return response.ok;
+    
+    clearTimeout(timeoutId);
+    return response.ok || response.status === 200;
   } catch {
     return false;
   }

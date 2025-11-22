@@ -1,17 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { unaryCall, serverStream, clientStream, bidirectionalStream, checkHealth } from '@/lib/grpc-api';
+import { serverStream, clientStream, bidirectionalStream, checkHealth } from '@/lib/grpc-api';
 
 export default function Home() {
   const [connected, setConnected] = useState(false);
   
-  // Pattern 1: Unary
-  const [unaryName, setUnaryName] = useState('Alice');
-  const [unaryResult, setUnaryResult] = useState('');
-  const [unaryLoading, setUnaryLoading] = useState(false);
-  
-  // Pattern 2: Server Streaming
+  // Pattern 1: Server Streaming
   const [streamName, setStreamName] = useState('Bob');
   const [streamMessages, setStreamMessages] = useState<string[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -39,21 +34,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
   
-  // Pattern 1: Unary RPC
-  const handleUnary = async () => {
-    setUnaryLoading(true);
-    setUnaryResult('');
-    try {
-      const response = await unaryCall(unaryName);
-      setUnaryResult(response.message);
-    } catch (error) {
-      setUnaryResult('Error: ' + (error as Error).message);
-    } finally {
-      setUnaryLoading(false);
-    }
-  };
-  
-  // Pattern 2: Server Streaming
+  // Pattern 1: Server Streaming
   const handleServerStream = () => {
     if (streaming && streamCleanup) {
       streamCleanup();
@@ -111,7 +92,7 @@ export default function Home() {
     setClientStreamResult('');
   };
   
-  // Pattern 4: Bidirectional Streaming
+  // Pattern 3: Bidirectional Streaming
   const connectBidirectional = () => {
     if (wsConnected && wsClient) {
       wsClient.close();
@@ -168,50 +149,10 @@ export default function Home() {
         {/* Patterns Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* Pattern 1: Unary RPC */}
+          {/* Pattern 1: Server Streaming */}
           <div className="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-purple-600">1️⃣ Unary RPC</h2>
-              <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-semibold">
-                Request → Response
-              </span>
-            </div>
-            <p className="text-gray-600 mb-4">Simple request-response, like REST API</p>
-            
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={unaryName}
-                onChange={(e) => setUnaryName(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleUnary()}
-                placeholder="Enter your name"
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
-              />
-              <button
-                onClick={handleUnary}
-                disabled={unaryLoading}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-              >
-                {unaryLoading ? 'Sending...' : 'Send Request'}
-              </button>
-              
-              {unaryResult && (
-                <div className="p-4 bg-green-50 border-2 border-green-200 rounded-lg">
-                  <h4 className="font-semibold text-green-800 mb-2">Response:</h4>
-                  <p className="text-gray-800">{unaryResult}</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600"><strong>Use Cases:</strong> Login, CRUD operations, Simple API calls</p>
-            </div>
-          </div>
-          
-          {/* Pattern 2: Server Streaming */}
-          <div className="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-green-600">2️⃣ Server Streaming</h2>
+              <h2 className="text-2xl font-bold text-green-600">1️⃣ Server Streaming</h2>
               <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
                 Request → Multiple
               </span>
@@ -256,10 +197,10 @@ export default function Home() {
             </div>
           </div>
           
-          {/* Pattern 3: Client Streaming */}
+          {/* Pattern 2: Client Streaming */}
           <div className="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-blue-600">3️⃣ Client Streaming</h2>
+              <h2 className="text-2xl font-bold text-blue-600">2️⃣ Client Streaming</h2>
               <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">
                 Multiple → Response
               </span>
@@ -329,10 +270,10 @@ export default function Home() {
             </div>
           </div>
           
-          {/* Pattern 4: Bidirectional Streaming */}
+          {/* Pattern 3: Bidirectional Streaming */}
           <div className="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-orange-600">4️⃣ Bidirectional</h2>
+              <h2 className="text-2xl font-bold text-orange-600">3️⃣ Bidirectional</h2>
               <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-semibold">
                 Multiple ↔ Multiple
               </span>
@@ -350,7 +291,7 @@ export default function Home() {
                 <div className={`px-4 py-3 rounded-lg font-semibold ${wsConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                   {wsConnected ? 'Connected ✓' : 'Disconnected'}
                 </div>
-              </div>
+        </div>
               
               <div className="h-64 overflow-y-auto p-4 bg-gray-50 border-2 border-gray-200 rounded-lg">
                 {chatMessages.length === 0 ? (

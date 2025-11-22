@@ -7,16 +7,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	pb "grpc-example/proto"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gorilla/websocket"
 )
-
-var grpcClient pb.GreeterClient
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -33,30 +32,89 @@ type UnaryResponse struct {
 }
 
 func main() {
-	// Connect to gRPC server
-	conn, err := grpc.Dial("localhost:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
+	// ⚡ Initialize optimized gRPC connection with pooling
+	if err := initGRPCConnection(); err != nil {
 		log.Fatalf("Failed to connect to gRPC server: %v", err)
 	}
-	defer conn.Close()
+	defer closeGRPCConnection()
 	
-	grpcClient = pb.NewGreeterClient(conn)
+	// Create HTTP server with optimizations
+	srv := &http.Server{
+		Addr:         ":8081",
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
+	}
 	
-	// Note: Static files removed - Next.js serves its own frontend
+	// ⚡ Apply middleware chain: Rate Limit → Gzip → CORS → Logger → Handler
+	http.HandleFunc("/api/unary", 
+		rateLimitMiddleware(
+			enableGzip(
+				enableCORS(
+					requestLogger(handleUnary),
+				),
+			),
+		),
+	)
 	
-	// API endpoints
-	http.HandleFunc("/api/unary", enableCORS(handleUnary))
-	http.HandleFunc("/api/server-stream", enableCORS(handleServerStream))
-	http.HandleFunc("/api/client-stream", enableCORS(handleClientStream))
-	http.HandleFunc("/api/bidirectional", handleBidirectional)
+	http.HandleFunc("/api/server-stream", 
+		rateLimitMiddleware(
+			enableCORS(
+				requestLogger(handleServerStream),
+			),
+		),
+	)
+	
+	http.HandleFunc("/api/client-stream", 
+		rateLimitMiddleware(
+			enableGzip(
+				enableCORS(
+					requestLogger(handleClientStream),
+				),
+			),
+		),
+	)
+	
+	http.HandleFunc("/api/bidirectional", 
+		rateLimitMiddleware(
+			requestLogger(handleBidirectional),
+		),
+	)
+	
+	// Health check endpoint
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	})
 	
 	log.Println("🚀 HTTP Gateway (API) running on http://localhost:8081")
-	log.Println("📡 Connected to gRPC server on localhost:8080")
+	log.Println("📡 Connected to gRPC server on localhost:8080 with connection pooling")
+	log.Println("⚡ Optimizations: Gzip, Rate Limiting, Connection Pooling, Request Logging")
 	log.Println("🔗 CORS enabled for Next.js on http://localhost:3000")
 	
-	if err := http.ListenAndServe(":8081", nil); err != nil {
-		log.Fatal(err)
+	// ⚡ Graceful shutdown
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+	
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+	
+	log.Println("🛑 Shutting down server gracefully...")
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
+	
+	log.Println("✅ Server exited gracefully")
 }
 
 // CORS middleware - configured for Next.js
@@ -84,33 +142,19 @@ func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // 1. UNARY RPC - POST /api/unary
+// ⛔ DISABLED: This endpoint has been disabled
 func handleUnary(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	log.Printf("[HTTP Gateway] ⛔ Unary API access blocked - Service disabled")
 	
-	var req UnaryRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	
-	log.Printf("[HTTP Gateway] Unary request: %s", req.Name)
-	
-	// Call gRPC
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	
-	grpcResp, err := grpcClient.SayHello(ctx, &pb.HelloRequest{Name: req.Name})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	
-	resp := UnaryResponse{Message: grpcResp.Message}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	w.WriteHeader(http.StatusServiceUnavailable)
+	
+	errorResp := map[string]string{
+		"error":   "Service Unavailable",
+		"message": "Unary API endpoint has been disabled",
+		"status":  "503",
+	}
+	json.NewEncoder(w).Encode(errorResp)
 }
 
 // 2. SERVER STREAMING RPC - GET /api/server-stream?name=xxx
@@ -140,8 +184,8 @@ func handleServerStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Call gRPC stream
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// ⚡ Use request context with timeout (better resource management)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	
 	stream, err := grpcClient.SayHelloServerStream(ctx, &pb.HelloRequest{Name: name})
@@ -185,8 +229,8 @@ func handleClientStream(w http.ResponseWriter, r *http.Request) {
 	
 	log.Printf("[HTTP Gateway] Client streaming request with %d names", len(names))
 	
-	// Call gRPC stream
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// ⚡ Use request context with timeout
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	
 	stream, err := grpcClient.SayHelloClientStream(ctx)
@@ -226,8 +270,8 @@ func handleBidirectional(w http.ResponseWriter, r *http.Request) {
 	
 	log.Println("[HTTP Gateway] Bidirectional WebSocket connection established")
 	
-	// Connect to gRPC stream
-	ctx, cancel := context.WithCancel(context.Background())
+	// ⚡ Use request context for better cancellation
+	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	
 	stream, err := grpcClient.SayHelloBidirectional(ctx)
