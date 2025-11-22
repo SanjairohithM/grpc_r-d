@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"compress/gzip"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -107,13 +109,22 @@ func requestLogger(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		
+		// For WebSocket endpoints, log before upgrade (connection stays open)
+		if strings.Contains(r.URL.Path, "bidirectional") {
+			log.Printf("[%s] %s %s - WebSocket upgrade request", r.Method, r.URL.Path, r.RemoteAddr)
+		}
+		
 		// Wrap response writer to capture status code
 		lw := &responseLogger{ResponseWriter: w, statusCode: http.StatusOK}
 		
 		next(lw, r)
 		
-		duration := time.Since(start)
-		log.Printf("[%s] %s %s - %d - %v", r.Method, r.URL.Path, r.RemoteAddr, lw.statusCode, duration)
+		// For WebSocket, the connection is hijacked, so this won't execute
+		// For other endpoints, log after completion
+		if !strings.Contains(r.URL.Path, "bidirectional") {
+			duration := time.Since(start)
+			log.Printf("[%s] %s %s - %d - %v", r.Method, r.URL.Path, r.RemoteAddr, lw.statusCode, duration)
+		}
 	}
 }
 
@@ -132,5 +143,13 @@ func (rl *responseLogger) Flush() {
 	if flusher, ok := rl.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
 	}
+}
+
+// Hijack implements http.Hijacker to support WebSocket upgrades
+func (rl *responseLogger) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacker, ok := rl.ResponseWriter.(http.Hijacker); ok {
+		return hijacker.Hijack()
+	}
+	return nil, nil, http.ErrNotSupported
 }
 

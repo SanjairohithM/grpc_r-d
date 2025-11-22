@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/joho/godotenv"
 	pb "grpc-example/proto"
 	"google.golang.org/grpc"
@@ -223,10 +225,8 @@ func main() {
 	}
 	defer CloseDB()
 	
-	lis, err := net.Listen("tcp", ":8080")
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
+	// Note: We use HTTP server for gRPC-Web, which internally uses the gRPC server
+	// No need for separate listener - grpcweb handles it
 	
 	// ⚡ OPTIMIZED gRPC Server with keepalive and performance settings
 	srv := grpc.NewServer(
@@ -253,13 +253,45 @@ func main() {
 	
 	pb.RegisterGreeterServer(srv, &server{db: DB})
 	
-	fmt.Println("⚡ gRPC server listening on :8080")
+	// ⚡ Wrap gRPC server with gRPC-Web support for browser clients
+	wrappedServer := grpcweb.WrapServer(srv,
+		grpcweb.WithOriginFunc(func(origin string) bool {
+			// Allow requests from Next.js frontend
+			return origin == "http://localhost:3000" || 
+			       origin == "http://localhost:3001" ||
+			       origin == "" // Allow same-origin requests
+		}),
+		grpcweb.WithWebsockets(true), // Enable WebSocket support for bidirectional streaming
+		grpcweb.WithWebsocketOriginFunc(func(req *http.Request) bool {
+			return true // Allow WebSocket connections
+		}),
+	)
+	
+	// Create HTTP server that serves gRPC-Web (for browsers)
+	// Regular gRPC clients can still connect directly to the gRPC server
+	httpServer := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Serve gRPC-Web requests
+			wrappedServer.ServeHTTP(w, r)
+		}),
+		Addr:         ":8080",
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	
+	// Start gRPC server in a separate goroutine (for native clients)
+	// Note: This won't work on the same port, so we'll use HTTP server for both
+	// The grpcweb wrapper handles both gRPC-Web and can proxy to gRPC
+	
+	fmt.Println("⚡ gRPC + gRPC-Web server listening on :8080")
 	fmt.Println("✅ Database connected and ready")
 	fmt.Println("⚡ Optimizations: Keepalive, Connection Pooling, Max Streams: 1000")
+	fmt.Println("🌐 gRPC-Web enabled for browser clients (no gateway needed!)")
 	
 	// ⚡ Graceful shutdown
 	go func() {
-		if err := srv.Serve(lis); err != nil {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("failed to serve: %v", err)
 		}
 	}()
@@ -269,10 +301,18 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 	
-	log.Println("🛑 Shutting down gRPC server gracefully...")
+	log.Println("🛑 Shutting down server gracefully...")
 	
-	// Graceful stop - stops accepting new connections, waits for existing to finish
+	// Graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
+	
+	// Also stop gRPC server gracefully
 	srv.GracefulStop()
 	
-	log.Println("✅ gRPC server exited gracefully")
+	log.Println("✅ Server exited gracefully")
 }

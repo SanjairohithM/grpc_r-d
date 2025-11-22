@@ -105,20 +105,20 @@ export function bidirectionalStream(
   };
 }
 
-// Health check - uses server stream endpoint to check connectivity
+// Health check - uses gateway health endpoint
 export async function checkHealth(): Promise<boolean> {
   try {
-    // Try to connect to server stream endpoint (quick check)
+    const healthUrl = API_BASE.replace('/api', '/health');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
     
-    const response = await fetch(`${API_BASE}/server-stream?name=HealthCheck`, {
+    const response = await fetch(healthUrl, {
       method: 'GET',
       signal: controller.signal,
     });
     
     clearTimeout(timeoutId);
-    return response.ok || response.status === 200;
+    return response.ok;
   } catch {
     return false;
   }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -78,15 +79,21 @@ func main() {
 	
 	http.HandleFunc("/api/bidirectional", 
 		rateLimitMiddleware(
-			requestLogger(handleBidirectional),
+			enableCORS(
+				requestLogger(handleBidirectional),
+			),
 		),
 	)
 	
-	// Health check endpoint
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
-	})
+	// Health check endpoint with CORS
+	http.HandleFunc("/health", 
+		enableCORS(
+			func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+			},
+		),
+	)
 	
 	log.Println("🚀 HTTP Gateway (API) running on http://localhost:8081")
 	log.Println("📡 Connected to gRPC server on localhost:8080 with connection pooling")
@@ -120,18 +127,29 @@ func main() {
 // CORS middleware - configured for Next.js
 func enableCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Allow Next.js frontend (port 3000)
+		// Allow Next.js frontend (port 3000) and any localhost
 		origin := r.Header.Get("Origin")
-		if origin == "http://localhost:3000" || origin == "http://localhost:3001" {
+		
+		// Allow localhost origins for development
+		if origin != "" && (origin == "http://localhost:3000" || 
+			origin == "http://localhost:3001" ||
+			strings.HasPrefix(origin, "http://localhost:") ||
+			strings.HasPrefix(origin, "http://127.0.0.1:")) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else if origin == "" {
+			// Same-origin request, allow it
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 		} else {
+			// Default to allowing localhost:3000
 			w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 		}
 		
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Type")
 		
+		// Handle preflight requests
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -172,11 +190,22 @@ func handleServerStream(w http.ResponseWriter, r *http.Request) {
 	
 	log.Printf("[HTTP Gateway] Server streaming request: %s", name)
 	
-	// Set SSE headers
+	// Set SSE headers (CORS is already handled by middleware, but ensure it's set)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
+	// Ensure CORS headers for SSE (middleware should have set this, but double-check)
+	origin := r.Header.Get("Origin")
+	if origin != "" && (origin == "http://localhost:3000" || 
+		origin == "http://localhost:3001" ||
+		strings.HasPrefix(origin, "http://localhost:") ||
+		strings.HasPrefix(origin, "http://127.0.0.1:")) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	} else {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+	}
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -268,7 +297,10 @@ func handleBidirectional(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 	
-	log.Println("[HTTP Gateway] Bidirectional WebSocket connection established")
+	log.Println("[HTTP Gateway] ✅ Bidirectional WebSocket connection established")
+	
+	// Send initial connection message
+	ws.WriteJSON(map[string]string{"message": "Connected to server!"})
 	
 	// ⚡ Use request context for better cancellation
 	ctx, cancel := context.WithCancel(r.Context())
@@ -276,25 +308,39 @@ func handleBidirectional(w http.ResponseWriter, r *http.Request) {
 	
 	stream, err := grpcClient.SayHelloBidirectional(ctx)
 	if err != nil {
-		log.Printf("gRPC stream error: %v", err)
+		log.Printf("❌ gRPC stream error: %v", err)
+		// Send error to client before closing
+		ws.WriteJSON(map[string]string{"error": fmt.Sprintf("Failed to connect to gRPC server: %v", err)})
 		return
 	}
 	
+	log.Println("[HTTP Gateway] ✅ gRPC bidirectional stream created")
+	
+	// Channel to signal when goroutine exits
+	done := make(chan bool, 1)
+	
 	// Goroutine to receive from gRPC and send to WebSocket
 	go func() {
+		defer func() {
+			done <- true
+		}()
+		
 		for {
 			grpcResp, err := stream.Recv()
 			if err == io.EOF {
+				log.Println("[HTTP Gateway] gRPC stream closed (EOF)")
+				ws.WriteJSON(map[string]string{"message": "Stream ended"})
 				return
 			}
 			if err != nil {
-				log.Printf("gRPC receive error: %v", err)
+				log.Printf("❌ gRPC receive error: %v", err)
+				ws.WriteJSON(map[string]string{"error": fmt.Sprintf("gRPC receive error: %v", err)})
 				return
 			}
 			
 			data := map[string]string{"message": grpcResp.Message}
 			if err := ws.WriteJSON(data); err != nil {
-				log.Printf("WebSocket write error: %v", err)
+				log.Printf("❌ WebSocket write error: %v", err)
 				return
 			}
 		}
@@ -305,7 +351,9 @@ func handleBidirectional(w http.ResponseWriter, r *http.Request) {
 		var msg map[string]string
 		if err := ws.ReadJSON(&msg); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				log.Printf("❌ WebSocket unexpected close: %v", err)
+			} else {
+				log.Printf("[HTTP Gateway] WebSocket closed by client")
 			}
 			break
 		}
@@ -315,14 +363,25 @@ func handleBidirectional(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		
-		log.Printf("[HTTP Gateway] Bidirectional message: %s", name)
+		log.Printf("[HTTP Gateway] 📨 Received message: %s", name)
 		
 		if err := stream.Send(&pb.HelloRequest{Name: name}); err != nil {
-			log.Printf("gRPC send error: %v", err)
+			log.Printf("❌ gRPC send error: %v", err)
+			ws.WriteJSON(map[string]string{"error": fmt.Sprintf("Failed to send message: %v", err)})
 			break
 		}
 	}
 	
+	// Cancel context and close stream
+	cancel()
 	stream.CloseSend()
+	
+	// Wait for goroutine to finish (with timeout)
+	select {
+	case <-done:
+		log.Println("[HTTP Gateway] ✅ Bidirectional stream closed cleanly")
+	case <-time.After(2 * time.Second):
+		log.Println("[HTTP Gateway] ⚠️  Timeout waiting for goroutine to finish")
+	}
 }
 
